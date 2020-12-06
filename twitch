@@ -1,0 +1,136 @@
+#!/bin/bash
+
+# List/Play your favorite twitch streams
+#
+# 1. Register an application at: https://dev.twitch.tv/console/apps/create
+# 2. Get the "client_id" from the twitch dev console
+# 3. Get the "token_id": https://dev.twitch.tv/docs/authentication/getting-tokens-oauth
+# 4. Add your "username" and "user_id" and you're good to go
+#
+# Author: Akis Foulidis <akis.foo@member.fsf.org>
+# Public-domain software
+#
+# twitch -h for help
+# required packages: jq, mpv, curl, awk
+
+username=""
+user_id=""
+streamer=$2
+token_id=""
+client_id=""
+twitch_url="http://twitch.tv/"
+twitch_api_users="https://api.twitch.tv/helix/users/follows?from_id="
+twitch_api_search="https://api.twitch.tv/helix/search/channels?query="
+auth="Authorization: Bearer"
+cid="Client-Id:"
+
+cp_url() {
+	echo "$twitch_url$streamer" | xclip -selection primary
+	echo "Twitch URL from $streamer copied on clipboard."
+}
+
+play_stream() {
+	mpv "$twitch_url$streamer" &
+}
+
+get_total() {
+	curl -s -X GET "$twitch_api_users$user_id" -H "$auth $token_id"\
+	-H "$cid $client_id" | jq | grep total | sed 's/[^0-9]*//g'
+}
+
+get_following() {
+	curl -s -X GET "$twitch_api_users$user_id&first=$(get_total)"\
+	-H "$auth $token_id" -H "$cid $client_id" | jq | grep to_name\
+	| awk -F '\"' '{ print $4 }'
+}
+
+is_live() {
+	if curl -s -X GET "$twitch_api_search$streamer" -H "$auth $token_id"\
+	   -H "$cid $client_id" | jq | head -10 | grep true &> /dev/null; then
+		echo "$streamer is live"
+	else
+		echo "$streamer is not live"
+	fi
+}
+
+ls_live() {
+	declare -a following=($(get_following))
+	echo "Retrieving live channels..."
+	echo
+
+	for i in "${following[@]}" 
+	do
+		if curl -s -X GET "$twitch_api_search$i" -H "$auth $token_id"\
+                   -H "$cid $client_id" | jq | head -10 | grep true &> /dev/null; then
+			echo "$i";
+		fi
+	done
+}
+
+twitch_help()
+{
+	echo "List and play your favorite twitch streams."
+	echo
+	echo "Command arguments:"
+	echo
+	echo "-f, --following        : list of following streamers"
+	echo "-l, --list             : list of live following streamers"
+	echo "-L, --live <streamer>  : check if streamer is live"
+	echo "-p, --play <streamer>  : play live stream"
+	echo "-h, --help             : help"
+	echo "-c, --copy-url         : copy stream URL to clipboard"
+}
+
+case $1 in
+	--following|-f)
+		if [ $# -ne 1 ]; then
+			echo "Usage: twitch -f"
+			exit
+		else
+			get_following
+		fi
+		;;
+	--list|-l)
+		if [ $# -ne 1 ]; then
+			echo "Usage: twitch -l"
+			exit
+		else
+			ls_live
+		fi
+		;;
+	--live|-L)
+		if [ $# -ne 2 ]; then
+			echo "Usage: twitch -L <streamer>"
+			exit
+		else
+			is_live
+		fi
+		;;
+	--play|-p)
+		if [ $# -ne 2 ]; then
+			echo "Usage: twitch -p <streamer>"
+			exit
+		else
+			play_stream
+		fi
+		;;
+	--help|-h)
+		if [ $# -ne 1 ]; then
+			echo "Usage: twitch -h"
+			exit
+		else
+			twitch_help
+		fi
+		;;
+	--copy-url|-c)
+		if [ $# -ne 2 ]; then
+			echo "Usage: twitch -c"
+			exit
+		else
+			cp_url
+		fi
+		;;
+	*)
+		echo "Usage: $0 {-f|-l|-L|-p|-h|-c}"
+		;;
+esac
