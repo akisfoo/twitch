@@ -78,7 +78,7 @@ twitch_help()
 	echo "-L, --live <streamer>  : check if streamer is live"
 	echo "-p, --play <streamer>  : play live stream"
 	echo "-h, --help             : help"
-	echo "-c, --copy-url         : copy stream URL to clipboard"
+	echo "-c, --copy-url         : copy stream URL to X clipboard"
 }
 
 case $1 in
